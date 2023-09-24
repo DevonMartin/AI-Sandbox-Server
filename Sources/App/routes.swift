@@ -11,6 +11,9 @@ func routes(_ app: Application) throws {
         "Hello, world!"
     }
 	
+	let rcController = RevenueCatController()
+	app.post("revenueCat", use: rcController.handleWebhook(req:))
+	
 	let api = app.grouped("api")
 	
 	// http://127.0.0.1:8080/api/sendMessages/
@@ -24,12 +27,5 @@ func routes(_ app: Application) throws {
 		} catch {
 			throw Abort(.badRequest)
 		}
-	}
-	
-	// http://127.0.0.1:8080/api/validateJWS/
-	api.post("validateJWS") { req async throws -> Bool in
-		let verificationRequest = try req.content.decode(VerificationRequest.self)
-		let status = await TransactionValidator.validate(verificationRequest.jwsRepresentation)
-		return status
 	}
 }
