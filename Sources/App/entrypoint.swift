@@ -25,6 +25,7 @@ enum Entrypoint {
     static func main() async throws {
         var env = try Environment.detect()
         try LoggingSystem.bootstrap(from: &env)
+		Task { await TransactionValidator.validate("") }
         
         let app = Application(env)
         defer { app.shutdown() }
