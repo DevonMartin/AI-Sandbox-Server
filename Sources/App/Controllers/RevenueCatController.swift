@@ -8,23 +8,21 @@
 import Vapor
 
 final class RevenueCatController {
-	private let secret = "ZGZzZzozbmZmM25ucmNqdm5iZWZqaGt2YjNqaHIgZmhqa2VybmIgdmprZW52"
+	private let secret = Environment.get("SECRET")
 	
-	func handleWebhook(req: Request) throws -> EventLoopFuture<HTTPStatus> {
-		print(req.headers[.authorization].first as Any)
-		guard let authorizationHeader = req.headers[.authorization].first,
-		authorizationHeader == secret else {
-			throw Abort(.unauthorized, reason: "Missing Authorization header")
+	func handleWebhook(req: Request) throws -> HTTPStatus {
+		
+		guard let authorizationHeader = req.headers.bearerAuthorization else {
+			throw Abort(.networkAuthenticationRequired, reason: "Missing Authorization header")
 		}
-		// Decode the webhook payload
+		guard authorizationHeader.token == secret else {
+			throw Abort(.unauthorized, reason: "Authorizastion header is incorrect.")
+		}
+		
 		let payload = try req.content.decode(RevenueCatPayload.self)
 		
 		// TODO: Process the payload (e.g., store data, update user entitlements, etc.)
 		
-		// For now, just print the received payload
-		print(payload)
-		
-		// Return a 200 OK response
-		return req.eventLoop.future(.ok)
+		return .ok
 	}
 }

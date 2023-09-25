@@ -11,6 +11,7 @@ func routes(_ app: Application) throws {
         "Hello, world!"
     }
 	
+	// http://127.0.0.1:8080/revenueCat
 	let rcController = RevenueCatController()
 	app.post("revenueCat", use: rcController.handleWebhook(req:))
 	
