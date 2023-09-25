@@ -260,8 +260,6 @@ class ChatGPT {
 	
 	private static func getResponse(request: URLRequest) async throws -> String {
 		
-		let session = URLSession.shared
-		
 		let data: Data
 		let response: URLResponse
 		do {
