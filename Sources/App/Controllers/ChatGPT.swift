@@ -242,6 +242,22 @@ class ChatGPT {
 		return try await shared.task!.value
 	}
 	
+	private static func fetchData(from request: URLRequest) async throws -> (Data, URLResponse) {
+		return try await withCheckedThrowingContinuation { continuation in
+			let session = URLSession.shared
+			
+			session.dataTask(with: request) { data, response, error in
+				if let error = error {
+					continuation.resume(throwing: error)
+				} else if let data = data, let response = response {
+					continuation.resume(returning: (data, response))
+				} else {
+					continuation.resume(throwing: APIError.unknown)
+				}
+			}.resume()
+		}
+	}
+	
 	private static func getResponse(request: URLRequest) async throws -> String {
 		
 		let session = URLSession.shared
@@ -249,10 +265,11 @@ class ChatGPT {
 		let data: Data
 		let response: URLResponse
 		do {
-			(data, response) = try await session.data(for: request)
-		} catch { // This occurs after so many attempts at removing a message and resending the
-				  // request to combat error.code "context_length_exceeded." I don't know why this
-				  // catches, but simply recursively calling the method again works.
+			(data, response) = try await fetchData(from: request)
+		} catch {
+			// This occurs after so many attempts at removing a message and resending the
+			// request to combat error.code "context_length_exceeded." I don't know why this
+			// catches, but simply recursively calling the method again works.
 			if error.localizedDescription == "The operation couldn’t be completed. Message too long" {
 				return try await getResponse(request: request)
 				// This occurs if the server can't respond quickly enough. The prompt can impact
