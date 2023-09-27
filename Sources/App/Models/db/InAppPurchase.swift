@@ -11,8 +11,6 @@ import Fluent
 final class InAppPurchase: Model, Content {
 	static let schema = "in_app_purchases"
 	
-	@ID(key: .id)
-	var id: UUID?
 	
 	@Parent(key: "user_id")
 	var user: User
@@ -20,8 +18,8 @@ final class InAppPurchase: Model, Content {
 	@Field(key: "product_id")
 	var productId: String
 	
-	@Field(key: "transaction_id")
-	var transactionId: String
+	@ID(custom: "id", generatedBy: .user)
+	var id: String?
 	
 	@Field(key: "purchase_date")
 	var purchaseDate: Date
@@ -33,17 +31,16 @@ final class InAppPurchase: Model, Content {
 	var updatedAt: Date?
 	
 	var credits: Double {
-		let strippedID = transactionId.replacingOccurrences(of: "Tokens", with: "")
-		return Double(strippedID) ?? 0
+		let creditsString = productId.replacingOccurrences(of: "Tokens", with: "")
+		return Double(creditsString) ?? 0
 	}
 	
-	init() { }
+	init() {}
 	
-	init(id: UUID? = nil, userId: User.IDValue, productId: String, transactionId: String, purchaseDate: Date) {
+	init(id: String, userId: User.IDValue, productId: String, purchaseDate: Date) {
 		self.id = id
 		self.$user.id = userId
 		self.productId = productId
-		self.transactionId = transactionId
 		self.purchaseDate = purchaseDate
 	}
 }

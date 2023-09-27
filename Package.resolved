@@ -131,8 +131,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/swift-crypto.git",
       "state" : {
-        "revision" : "60f13f60c4d093691934dc6cfdf5f508ada1f894",
-        "version" : "2.6.0"
+        "revision" : "ddb07e896a2a8af79512543b1c7eb9797f8898a5",
+        "version" : "1.1.7"
       }
     },
     {
@@ -213,7 +213,7 @@
       "location" : "https://github.com/DevonMartin/Tiktoken.git",
       "state" : {
         "branch" : "main",
-        "revision" : "fab5d26060f56c8ef590192b7faa39022828d14d"
+        "revision" : "68125f7c977d7d1ce838f712e2bf2b5d9ea69520"
       }
     },
     {

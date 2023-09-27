@@ -20,7 +20,7 @@ func routes(_ app: Application) throws {
 	api.post("getBalance") { req async throws -> BalanceData in
 		let userID = try req.content.decode(String.self)
 		let user = try? await User.find(userID, on: req.db)
-		let balance = user?.getBalance(req)
+		let balance = await user?.getBalance(req)
 		return BalanceData(userID: userID, balance: balance)
 	}
 	

@@ -23,22 +23,38 @@ final class User: Model, Content {
 	@Field(key: "used_credits")
 	var usedCredits: Double?
 	
-	init() { }
+	init() {}
 	
-	init(id: String? = nil) {
+	init(id: String) {
 		self.id = id
 		self.usedCredits = 0
 	}
 	
-	func getBalance(_ req: Request) -> Double? {
-		guard let id else { return nil }
+	func getBalance(_ req: Request) async -> Double {
+		guard let id else { return 0 }
 		
-		let purchasesRequest = InAppPurchase.query(on: req.db)
+		let purchases = try? await InAppPurchase.query(on: req.db)
 			.filter(\.$user.$id == id)
 			.all()
 		
-		guard let purchases = try? purchasesRequest.wait() else { return nil }
+		guard let purchases else { return 0 }
+		
 		let totalPurchasedCredits = purchases.map { $0.credits }.reduce(0, +)
-		return (usedCredits ?? 0) - totalPurchasedCredits
+		return totalPurchasedCredits - (usedCredits ?? 0)
+	}
+	
+	func addToBalance(_ event: Event, req: Request) async throws {
+		
+		let purchaseDate = Date(timeIntervalSince1970: TimeInterval(event.purchased_at_ms) / 1000)
+		
+		let purchase = InAppPurchase(
+			id: event.transaction_id,
+			userId: id!,
+			productId: event.product_id,
+			purchaseDate: purchaseDate
+		)
+		
+		try await purchase.save(on: req.db)
+		try await save(on: req.db)
 	}
 }

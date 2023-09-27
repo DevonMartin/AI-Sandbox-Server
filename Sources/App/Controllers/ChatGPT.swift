@@ -137,12 +137,12 @@ class ChatGPT {
 		data: SendMessagesData,
 		req: Request
 	) async -> ChatRequestData? {
-		guard let user = try? await User.find(data.userID, on: req.db),
-			  let balance = user.getBalance(req) else {
-			print("User does not have a balance.")
+		guard let user = try? await User.find(data.userID, on: req.db) else {
+			print("No user with provided ID found: \(data.userID)")
 			return nil
 		}
 		
+		let balance = await user.getBalance(req)
 		let model = GPTModel(model: data.model)
 		
 		let totalBudget = min(balance, model.maxInputExpense)
