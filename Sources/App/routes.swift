@@ -12,21 +12,18 @@ func routes(_ app: Application) throws {
     }
 	
 	// http://127.0.0.1:8080/revenueCat
-	let rcController = RevenueCatController()
-	app.post("revenueCat", use: rcController.handleWebhook(req:))
+	app.post("revenueCat", use: RevenueCatController.handleWebhook(req:))
 	
 	let api = app.grouped("api")
 	
-	// http://127.0.0.1:8080/api/sendMessages/
-	api.post("sendMessages") { req async throws -> Message in
-		let data = try req.content.decode(SendMessagesData.self)
-		
-		do {
-			let content = try await ChatGPT.sendMessages(data)
-			let message = Message(content: content, sentByUser: false, timestamp: Date.now)
-			return message
-		} catch {
-			throw Abort(.badRequest)
-		}
+	// http://127.0.0.1:8080/api/getBalance/
+	api.post("getBalance") { req async throws -> BalanceData in
+		let userID = try req.content.decode(String.self)
+		let user = try? await User.find(userID, on: req.db)
+		let balance = user?.getBalance(req)
+		return BalanceData(userID: userID, balance: balance)
 	}
+	
+	// http://127.0.0.1:8080/api/sendMessages/
+	api.post("sendMessages", use: ChatGPT.sendMessages)
 }

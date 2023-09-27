@@ -5,8 +5,8 @@
 //  Created by Devon Martin on 9/21/23.
 //
 
-import Foundation
+import Vapor
 
-struct RandomPromptData {
+struct RandomPromptData: Content {
 	let category: String
 }

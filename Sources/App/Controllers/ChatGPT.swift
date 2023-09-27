@@ -10,36 +10,11 @@ import Foundation
 import FoundationNetworking
 #endif
 import Vapor
+import Tiktoken
 
 class ChatGPT {
 	
-	private static var shared = ChatGPT()
-	
-	private var task: Task<String, Error>?
-	
-	enum APIError: Error, CaseIterable {
-		case unknown, timeout, cancellationError
-		
-		var description: String {
-			switch self {
-				case .unknown:
-					return "Something went wrong. Please try again."
-				case .timeout:
-					return "Your request timed out. Try again, or consider a different prompt."
-				case .cancellationError:
-					return "Your task was cancelled."
-			}
-		}
-		
-		static func isError(_ string: String) -> Bool {
-			Self.allCases
-				.map { $0.description }
-				.contains(string)
-		}
-	}
-	
 	private init() {}
-	
 	
 	// MARK: API
 	
@@ -47,9 +22,7 @@ class ChatGPT {
 	///
 	/// This function acts as a wrapper around the API request process. It organizes the messages to send, generates the appropriate
 	/// request object, and then sends the request. It also handles various potential errors from the API and returns informative error
-	/// descriptions. An important feature of this function is the use of cancellation. If a new request is initiated while a previous one is
-	/// still processing, the ongoing request is cancelled. This prevents confusion from multiple responses coming in at different times
-	/// and ensures that the API only responds to the most recent set of messages.
+	/// descriptions.
 	///
 	/// - Throws: An `APIError` of type `cancellationError` if the function was cancelled before it could finish
 	/// processing a request.
@@ -67,30 +40,33 @@ class ChatGPT {
 	///     print(error.localizedDescription) // Prints "The operation was cancelled."
 	/// }
 	/// ```
-	static func sendMessages(_ data: SendMessagesData) async throws -> String {
+	static func sendMessages(_ req: Request) async throws -> Message {
+		guard let apiKey = Environment.get("API_KEY") else { throw Abort(.internalServerError) }
 		
-		let messages = generateMessagesArray(
-			messages: data.messages,
-			systemMessage: data.systemMessage
-		)
+		let data = try req.content.decode(SendMessagesData.self)
 		
-		let request = await generateRequestObject(
+		let messages = data.messages.map { message in
+			ChatRequestMessageData(
+				role: message.sentByUser ? .user : .assistant,
+				content: message.content
+			)
+		}
+		
+		guard let chatRequestData = await verifySufficientCredits(
 			messages: messages,
-			model: data.model,
-			temperature: data.temperature,
-			maxTokens: data.maxTokens
-		)
+			data: data,
+			req: req
+		) else {
+			throw Abort(.paymentRequired)
+		}
 		
 		do {
-			return try await getCancellableResponse(request: request)
+			let response = try await getResponse(to: chatRequestData, apiKey: apiKey, req: req)
+			return Message(response)
 		} catch let error as APIError {
-			if error == .cancellationError {
-				throw error
-			} else {
-				return error.description
-			}
+			return Message(error.localizedDescription)
 		} catch {
-			return APIError.unknown.description
+			return Message(APIError.unknown.description)
 		}
 	}
 	
@@ -142,24 +118,64 @@ class ChatGPT {
 		)
 		
 		do {
-			let title = try await getCancellableResponse(request: request)
+			let title = try await getResponse(request: request)
 			return title
 				.replacingOccurrences(of: "Title: ", with: "")
 				.trimmingCharacters(in: .whitespacesAndNewlines)
 				.trimmingCharacters(in: .punctuationCharacters)
 				.trimmingCharacters(in: ["\""])
-		} catch let error as APIError {
-			if error == .cancellationError {
-				throw error
-			}
 		} catch {
 			throw APIError.unknown
 		}
-		return "Error generating title."
 	}
 	
 	
 	// MARK: Helper Functions
+	
+	private static func verifySufficientCredits(
+		messages: [ChatRequestMessageData],
+		data: SendMessagesData,
+		req: Request
+	) async -> ChatRequestData? {
+		guard let user = try? await User.find(data.userID, on: req.db),
+			  let balance = user.getBalance(req) else {
+			print("User does not have a balance.")
+			return nil
+		}
+		
+		let model = GPTModel(model: data.model)
+		
+		let totalBudget = min(balance, model.maxInputExpense)
+		
+		let inputBudget = data.responseBudget != nil
+		? totalBudget - data.responseBudget!
+		: totalBudget
+		
+		var messages = messages
+		
+		while await messages.inputCost(with: model) > inputBudget
+				&& messages.count > 1 {
+			messages.remove(at: 1)
+		}
+		
+		guard messages.count > 1 else { return nil }
+		
+		var maxOutputTokens: Int? = nil
+		
+		if let responseBudget = data.responseBudget,
+		   responseBudget > 0 {
+			let maxTokens = responseBudget / model.costPerToken.output
+			maxOutputTokens = Int(floor(maxTokens))
+		}
+		
+		return ChatRequestData(
+			model: data.model,
+			messages: messages,
+			temperature: data.temperature,
+			maxTokens: maxOutputTokens,
+			user: data.userID
+		)
+	}
 	
 	private static func getNewRequest() async -> URLRequest {
 		let url = URL(string: "https://api.openai.com/v1/chat/completions")!
@@ -231,17 +247,6 @@ class ChatGPT {
 		return messagesArray
 	}
 	
-	private static func getCancellableResponse(request: URLRequest) async throws -> String {
-		
-		shared.task?.cancel()
-		
-		shared.task = Task {
-			try await getResponse(request: request)
-		}
-		
-		return try await shared.task!.value
-	}
-	
 	private static func fetchData(from request: URLRequest) async throws -> (Data, URLResponse) {
 		return try await withCheckedThrowingContinuation { continuation in
 			let session = URLSession.shared
@@ -255,6 +260,53 @@ class ChatGPT {
 					continuation.resume(throwing: APIError.unknown)
 				}
 			}.resume()
+		}
+	}
+	
+	private static func getResponse(
+		to chatRequestData: ChatRequestData,
+		apiKey: String,
+		req: Request
+	) async throws -> String {
+		let uri: URI = "https://api.openai.com/v1/chat/completions"
+		let response: ClientResponse
+		
+		do {
+			response = try await req.client.post(uri) { req in
+				try req.content.encode(chatRequestData, as: .json)
+				req.headers.bearerAuthorization = .init(token: apiKey)
+			}
+		} catch {
+				
+			// This occurs if the server can't respond quickly enough. The prompt can impact
+			// this. For example, I found this error from the following prompt: "Hello. This
+			// is a test. Please write me a very, very long response. Like, the length of an
+			// essay." This prompt consistently results in a timeout.
+			if error.localizedDescription == "The request timed out." {
+				throw APIError.timeout
+			} else {
+				throw APIError.unknown
+			}
+		}
+		
+		guard let body = response.body else { throw Abort(.internalServerError) }
+		
+		let decoder = JSONDecoder()
+		decoder.keyDecodingStrategy = .convertFromSnakeCase
+		
+		do {
+			let chatCompletion = try decoder.decode(ChatCompletion.self, from: body)
+			let choice = chatCompletion.choices[0]
+			let content = choice.message.content
+			return content.trimmingCharacters(in: ["\n", " "])
+			
+		} catch {
+			let error = try decoder.decode(ResponseError.self, from: body).error
+			print("###\(#function): \(error)")
+			
+			// Error message from API call is descriptive enough to be returned to the
+			// user if a message cannot be removed to try again.
+			return error.message
 		}
 	}
 	
@@ -276,8 +328,6 @@ class ChatGPT {
 				// essay." This prompt consistently results in a timeout.
 			} else if error.localizedDescription == "The request timed out." {
 				throw APIError.timeout
-			} else if error.localizedDescription == "cancelled" {
-				throw APIError.cancellationError
 			} else {
 				throw APIError.unknown
 			}
@@ -333,5 +383,28 @@ class ChatGPT {
 			}
 		}
 		throw APIError.unknown // Something went wrong that I haven't thought of or discovered yet.
+	}
+	
+	private static func Message(_ content: String) -> Message {
+		App.Message(content: content, sentByUser: false, timestamp: .now)
+	}
+}
+
+enum APIError: Error, CaseIterable {
+	case unknown, timeout
+	
+	var description: String {
+		switch self {
+			case .unknown:
+				return "Something went wrong. Please try again."
+			case .timeout:
+				return "Your request timed out. Try again, or consider a different prompt."
+		}
+	}
+	
+	static func isError(_ string: String) -> Bool {
+		Self.allCases
+			.map { $0.description }
+			.contains(string)
 	}
 }

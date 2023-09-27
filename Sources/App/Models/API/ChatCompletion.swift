@@ -5,21 +5,23 @@
 //  Created by Devon Martin on 9/21/23.
 //
 
-struct ChatCompletion: Decodable {
+import Vapor
+
+struct ChatCompletion: Content {
 	let usage: Usage
 	let choices: [Choice]
 	
-	struct Usage: Decodable {
+	struct Usage: Content {
 		let promptTokens: Int
 		let completionTokens: Int
 		let totalTokens: Int
 	}
 	
-	struct Choice: Decodable {
+	struct Choice: Content {
 		let message: Message
 		let finishReason: String?
 		
-		struct Message: Decodable {
+		struct Message: Content {
 			let content: String
 		}
 	}

@@ -13,31 +13,29 @@ final class AppTests: XCTestCase {
         }
     }
 	
-	func testSendMessages() async throws {
-		let app = Application(.testing)
-		defer { app.shutdown() }
-		try await configure(app)
-		
-//		let data: SendMessagesData = .init(
+//	func testSendMessages() async throws {
+//		let app = Application(.testing)
+//		defer { app.shutdown() }
+//		try await configure(app)
+//		
+//		let content: SendMessagesData = .init(
 //			systemMessage: "Respond only \"test\"",
 //			messages: [
 //				.init(content: "Hello!", sentByUser: true, timestamp: Date.now)
 //			],
 //			model: "gpt-3.5-turbo",
-//			maxTokens: nil,
-//			temperature: 0.2
+//			responseBudget: nil,
+//			temperature: 0.2,
+//			userID: ""
 //		 )
-		
-		try app.test(.POST, "api/sendMessages") { res in
-			
-		}
-	}
-	
-	func testTest() async throws {
-		let app = Application(.testing)
-		defer { app.shutdown() }
-		try await configure(app)
-		
-		
-	}
+//		
+//		try app.test(.POST, "/api/sendMessages") { req in
+//			try req.content.encode(content)
+//		} afterResponse: { res in
+//			XCTAssertEqual(res.status, .ok)
+//			let message = try res.content.decode(Message.self)
+//			XCTAssert(!message.content.isEmpty)
+//			XCTAssert(!message.sentByUser)
+//		}
+//	}
 }
