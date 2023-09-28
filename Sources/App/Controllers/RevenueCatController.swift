@@ -11,6 +11,10 @@ final class RevenueCatController {
 	private static let secret = Environment.get("SECRET")
 	
 	static func handleWebhook(req: Request) async throws -> HTTPStatus {
+		guard let secret else {
+			throw Abort(.internalServerError, reason: "Failed to fetch SECRET from the environment.")
+		}
+		
 		guard let authorizationHeader = req.headers.bearerAuthorization else {
 			throw Abort(.networkAuthenticationRequired, reason: "Missing Authorization header")
 		}

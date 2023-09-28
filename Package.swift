@@ -1,4 +1,4 @@
-// swift-tools-version:5.8
+// swift-tools-version:5.9
 import PackageDescription
 
 let package = Package(
@@ -7,25 +7,32 @@ let package = Package(
        .macOS(.v13)
     ],
     dependencies: [
-        // 💧 A server-side Swift web framework.
-        .package(url: "https://github.com/vapor/vapor.git", from: "4.0.0"),
-		.package(url: "https://github.com/vapor/fluent.git", from: "4.0.0"),
-		.package(url: "https://github.com/vapor/fluent-postgres-driver.git", from: "2.0.0"),
+		// 💧 A server-side Swift web framework.
+		.package(url: "https://github.com/vapor/vapor.git", from: "4.83.1"),
+		// 🗄 An ORM for SQL and NoSQL databases.
+		.package(url: "https://github.com/vapor/fluent.git", from: "4.8.0"),
+		// 🐘 Fluent driver for Postgres.
+		.package(url: "https://github.com/vapor/fluent-postgres-driver.git", from: "2.7.2"),
 		.package(url: "https://github.com/DevonMartin/Tiktoken.git", branch: "main"),
     ],
     targets: [
         .executableTarget(
             name: "App",
             dependencies: [
-				.product(name: "Vapor", package: "vapor"),
 				.product(name: "Fluent", package: "fluent"),
 				.product(name: "FluentPostgresDriver", package: "fluent-postgres-driver"),
-				.product(name: "Tiktoken", package: "tiktoken")
+				.product(name: "Tiktoken", package: "tiktoken"),
+				.product(name: "Vapor", package: "vapor"),
             ]
         ),
         .testTarget(name: "AppTests", dependencies: [
             .target(name: "App"),
             .product(name: "XCTVapor", package: "vapor"),
+			
+			// Workaround for https://github.com/apple/swift-package-manager/issues/6940
+			.product(name: "Vapor", package: "vapor"),
+			.product(name: "Fluent", package: "Fluent"),
+			.product(name: "FluentPostgresDriver", package: "fluent-postgres-driver"),
         ])
     ]
 )
