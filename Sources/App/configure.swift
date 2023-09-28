@@ -17,7 +17,11 @@ public func configure(_ app: Application) async throws {
 	app.migrations.add(CreateInAppPurchase())
 	
 	if Environment.get("AUTO_MIGRATE") == "true" {
-		try await app.autoMigrate().get()
+		do {
+			try await app.autoMigrate()
+		} catch {
+			print(error.localizedDescription)
+		}
 	}
 	
     try routes(app)
