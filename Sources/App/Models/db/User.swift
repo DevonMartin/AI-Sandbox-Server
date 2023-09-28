@@ -44,6 +44,7 @@ final class User: Model, Content {
 	}
 	
 	func addToBalance(_ event: Event, req: Request) async throws {
+		try await save(on: req.db)
 		
 		let purchaseDate = Date(timeIntervalSince1970: TimeInterval(event.purchased_at_ms) / 1000)
 		
@@ -55,6 +56,5 @@ final class User: Model, Content {
 		)
 		
 		try await purchase.save(on: req.db)
-		try await save(on: req.db)
 	}
 }
