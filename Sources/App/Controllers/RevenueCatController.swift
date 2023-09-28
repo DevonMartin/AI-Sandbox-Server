@@ -18,7 +18,8 @@ final class RevenueCatController {
 		let headers = req.headers
 		
 		guard let authorizationHeader = headers.bearerAuthorization?.token
-				?? headers.basicAuthorization?.password else {
+				?? headers.basicAuthorization?.password
+				?? req.headers.first(name: "Authorization") else {
 			throw Abort(.networkAuthenticationRequired, reason: "Missing Authorization header")
 		}
 		guard authorizationHeader == secret else {
