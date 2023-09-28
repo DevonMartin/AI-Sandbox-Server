@@ -15,10 +15,13 @@ final class RevenueCatController {
 			throw Abort(.internalServerError, reason: "Failed to fetch SECRET from the environment.")
 		}
 		
-		guard let authorizationHeader = req.headers.bearerAuthorization else {
+		let headers = req.headers
+		
+		guard let authorizationHeader = headers.bearerAuthorization?.token
+				?? headers.basicAuthorization?.password else {
 			throw Abort(.networkAuthenticationRequired, reason: "Missing Authorization header")
 		}
-		guard authorizationHeader.token == secret else {
+		guard authorizationHeader == secret else {
 			throw Abort(.unauthorized, reason: "Authorization header is incorrect.")
 		}
 		
