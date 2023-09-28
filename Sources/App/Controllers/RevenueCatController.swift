@@ -30,13 +30,23 @@ final class RevenueCatController {
 			throw Abort(.unauthorized, reason: "Authorization header is incorrect.")
 		}
 		
-		let payload = try req.content.decode(RevenueCatPayload.self)
+		let payload: RevenueCatPayload
+		
+		do {
+			payload = try req.content.decode(RevenueCatPayload.self)
+		} catch {
+			throw Abort(.internalServerError, reason: error.localizedDescription)
+		}
 		
 		let event = payload.event
 		let userID = event.app_user_id
 		let user = (try? await User.find(userID, on: req.db)) ?? User(id: userID)
 		
-		try await user.addToBalance(event, req: req)
+		do {
+			try await user.addToBalance(event, req: req)
+		} catch {
+			throw Abort(.internalServerError, reason: error.localizedDescription)
+		}
 		let balance = await user.getBalance(req)
 		
 		let reasonPhrase = "User with ID \(userID) has a balance of $\(balance)"
