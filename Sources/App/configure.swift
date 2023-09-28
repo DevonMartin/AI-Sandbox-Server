@@ -11,6 +11,8 @@ public func configure(_ app: Application) async throws {
 		fatalError("Unable to retrieve database URL from the environment.")
 	}
 	
+	app.databases.use(try .postgres(url: databaseURL), as: .psql)
+	
 	app.migrations.add(CreateUser())
 	app.migrations.add(CreateInAppPurchase())
 	

@@ -17,6 +17,10 @@ final class RevenueCatController {
 		
 		let headers = req.headers
 		
+		req.logger.info("headers.bearerAuthorization?.token: \(headers.bearerAuthorization?.token)")
+		req.logger.info("headers.basicAuthorization?.password: \(headers.basicAuthorization?.password)")
+		req.logger.info("req.headers.first(name: \"Authorization\"): \(req.headers.first(name: "Authorization"))")
+		
 		guard let authorizationHeader = headers.bearerAuthorization?.token
 				?? headers.basicAuthorization?.password
 				?? req.headers.first(name: "Authorization") else {
