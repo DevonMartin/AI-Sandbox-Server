@@ -35,7 +35,7 @@ final class RevenueCatController {
 		do {
 			payload = try req.content.decode(RevenueCatPayload.self)
 		} catch {
-			throw Abort(.internalServerError, reason: error.localizedDescription)
+			throw Abort(.internalServerError, reason: "Could not decode payload: \(error.localizedDescription)")
 		}
 		
 		let event = payload.event
@@ -45,7 +45,7 @@ final class RevenueCatController {
 		do {
 			try await user.addToBalance(event, req: req)
 		} catch {
-			throw Abort(.internalServerError, reason: error.localizedDescription)
+			throw Abort(.internalServerError, reason: "Could not add to balance: \(error.localizedDescription)")
 		}
 		let balance = await user.getBalance(req)
 		
