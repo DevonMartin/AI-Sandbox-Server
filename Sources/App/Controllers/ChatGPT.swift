@@ -41,7 +41,9 @@ class ChatGPT {
 	/// }
 	/// ```
 	static func sendMessages(_ req: Request) async throws -> Message {
-		guard let apiKey = Environment.get("API_KEY") else { throw Abort(.internalServerError) }
+		guard let apiKey = Environment.get("API_KEY") else {
+			throw Abort(.internalServerError, reason: "Failed to fetch API key from the environment.")
+		}
 		
 		let data = try req.content.decode(SendMessagesData.self)
 		
@@ -291,6 +293,13 @@ class ChatGPT {
 		
 		guard let body = response.body else { throw Abort(.internalServerError) }
 		
+		// 429 means "Too Many Requests." Requests reset after 20s. Cause 2.5s delay and try again.
+		// Only applicable to free-tier API. Paid API has practically unlimited requests.
+		guard response.status.code != 429 else {
+			try await Task.sleep(for: .seconds(2.5))
+			return try await self.getResponse(to: chatRequestData, apiKey: apiKey, req: req)
+		}
+		
 		let decoder = JSONDecoder()
 		decoder.keyDecodingStrategy = .convertFromSnakeCase
 		
@@ -304,8 +313,7 @@ class ChatGPT {
 			let error = try decoder.decode(ResponseError.self, from: body).error
 			print("###\(#function): \(error)")
 			
-			// Error message from API call is descriptive enough to be returned to the
-			// user if a message cannot be removed to try again.
+			// Error message from API call is descriptive enough to be returned to the user.
 			return error.message
 		}
 	}
@@ -387,6 +395,44 @@ class ChatGPT {
 	
 	private static func Message(_ content: String) -> Message {
 		App.Message(content: content, sentByUser: false, timestamp: .now)
+	}
+}
+
+extension ChatGPT {
+	
+	static func getAvailableModels(_ req: Request) async throws -> [ModelListResponse.Model] {
+		guard let apiKey = Environment.get("API_KEY") else {
+			throw Abort(.internalServerError, reason: "Failed to fetch API key from the environment.")
+		}
+		
+		let uri: URI = "https://api.openai.com/v1/models"
+		
+		let response = try? await req.client.get(uri) { req in
+			req.headers.bearerAuthorization = .init(token: apiKey)
+		}
+		
+		guard let body = response?.body else {
+			throw Abort(.badGateway, reason: "Failed to fetch data from OpenAI.")
+		}
+		
+		let decoder = JSONDecoder()
+		
+		guard let modelList = try? decoder.decode(ModelListResponse.self, from: body) else {
+			throw Abort(.internalServerError, reason: "Failed to convert Model data.")
+		}
+		
+		return modelList.data.filter {
+			$0.id.contains("gpt") &&
+			!$0.id.contains("instruct")
+		}
+	}
+	
+	struct ModelListResponse: Decodable {
+		var data: [Model]
+		
+		struct Model: Content {
+			let id: String
+		}
 	}
 }
 
