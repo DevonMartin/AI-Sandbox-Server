@@ -17,13 +17,7 @@ final class RevenueCatController {
 		
 		let headers = req.headers
 		
-		req.logger.info("headers.bearerAuthorization?.token: \(headers.bearerAuthorization?.token)")
-		req.logger.info("headers.basicAuthorization?.password: \(headers.basicAuthorization?.password)")
-		req.logger.info("req.headers.first(name: \"Authorization\"): \(req.headers.first(name: "Authorization"))")
-		
-		guard let authorizationHeader = headers.bearerAuthorization?.token
-				?? headers.basicAuthorization?.password
-				?? req.headers.first(name: "Authorization") else {
+		guard let authorizationHeader = req.headers.first(name: "Authorization") else {
 			throw Abort(.networkAuthenticationRequired, reason: "Missing Authorization header")
 		}
 		guard authorizationHeader == secret else {
@@ -38,8 +32,14 @@ final class RevenueCatController {
 			throw Abort(.internalServerError, reason: "Could not decode payload: \(error.localizedDescription)")
 		}
 		
-		let event = payload.event
-		let userID = event.app_user_id
+		guard let event = payload.event else {
+			throw Abort(.badRequest, reason: "No event provided in the payload.")
+		}
+		
+		guard let userID = event.app_user_id else {
+			throw Abort(.badRequest, reason: "No user ID provided.")
+		}
+		
 		let user = (try? await User.find(userID, on: req.db)) ?? User(id: userID)
 		
 		do {

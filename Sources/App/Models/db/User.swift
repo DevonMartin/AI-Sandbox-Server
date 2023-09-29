@@ -44,17 +44,36 @@ final class User: Model, Content {
 	}
 	
 	func addToBalance(_ event: Event, req: Request) async throws {
-		try await save(on: req.db)
+		do {
+			try await save(on: req.db)
+		} catch {
+			throw Abort(
+				.internalServerError,
+				reason: "Unable to save user to database: \(error.localizedDescription)"
+			)
+		}
 		
-		let purchaseDate = Date(timeIntervalSince1970: TimeInterval(event.purchased_at_ms) / 1000)
+		guard let transactionID = event.transaction_id,
+			  let purchaseAtMS = event.purchased_at_ms,
+			  let productID = event.product_id else {
+			throw Abort(.badRequest, reason: "Necessary data not provided.")
+		}
+		let purchaseDate = Date(timeIntervalSince1970: TimeInterval(purchaseAtMS) / 1000)
 		
 		let purchase = InAppPurchase(
-			id: event.transaction_id,
+			id: transactionID,
 			userId: id!,
-			productId: event.product_id,
+			productId: productID,
 			purchaseDate: purchaseDate
 		)
 		
-		try await purchase.save(on: req.db)
+		do {
+			try await purchase.save(on: req.db)
+		} catch {
+			throw Abort(
+				.internalServerError,
+				reason: "Unable to save in-app purchase to database: \(error.localizedDescription)"
+			)
+		}
 	}
 }
