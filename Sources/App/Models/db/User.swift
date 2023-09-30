@@ -62,7 +62,7 @@ final class User: Model, Content {
 		
 		let purchase = InAppPurchase(
 			id: transactionID,
-			userId: id!,
+			userId: self.id!,
 			productId: productID,
 			purchaseDate: purchaseDate
 		)

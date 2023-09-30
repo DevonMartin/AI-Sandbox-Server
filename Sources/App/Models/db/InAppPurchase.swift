@@ -11,6 +11,8 @@ import Fluent
 final class InAppPurchase: Model, Content {
 	static let schema = "in_app_purchases"
 	
+	@ID(custom: "id", generatedBy: .user)
+	var id: String?
 	
 	@Parent(key: "user_id")
 	var user: User
@@ -18,8 +20,6 @@ final class InAppPurchase: Model, Content {
 	@Field(key: "product_id")
 	var productId: String
 	
-	@ID(custom: "id", generatedBy: .user)
-	var id: String?
 	
 	@Field(key: "purchase_date")
 	var purchaseDate: Date

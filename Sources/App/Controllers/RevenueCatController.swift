@@ -15,8 +15,6 @@ final class RevenueCatController {
 			throw Abort(.internalServerError, reason: "Failed to fetch SECRET from the environment.")
 		}
 		
-		let headers = req.headers
-		
 		guard let authorizationHeader = req.headers.first(name: "Authorization") else {
 			throw Abort(.networkAuthenticationRequired, reason: "Missing Authorization header")
 		}
