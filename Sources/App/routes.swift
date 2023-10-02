@@ -30,10 +30,4 @@ func routes(_ app: Application) throws {
 	
 	// http://127.0.0.1:8080/api/title
 	api.post("title", use: ChatGPT.getTitle)
-	
-	// FIXME: Remove these! For testing-purposes only!
-	app.delete("purchases") { req async throws -> HTTPResponseStatus in
-		try await InAppPurchase.query(on: req.db).delete()
-		return .noContent
-	}
 }
