@@ -193,7 +193,7 @@ class ChatGPT {
 		let maxOutputTokens: Int? = if data.responseBudget > model.maxOutputExpense * 0.75 { nil }
 		else { Int(floor(data.responseBudget / model.costPerToken.output)) }
 		
-		var inputBudget: Double = if let maxOutputTokens {
+		let inputBudget: Double = if maxOutputTokens != nil {
 			maxInputCost - data.responseBudget
 		} else {
 			maxInputCost
@@ -248,13 +248,8 @@ class ChatGPT {
 		systemMessage: String,
 		messages: [Message]
 	) -> [ChatRequestMessageData] {
-		var array = [ChatRequestMessageData(role: .system, content: systemMessage)]
-		
-		return array + messages.map { message in
-			ChatRequestMessageData(
-				role: message.sentByUser ? .user : .assistant,
-				content: message.content
-			)
+		[.init(role: .system, content: systemMessage)] + messages.map { message in
+				.init(role: message.sentByUser ? .user : .assistant, content: message.content)
 		}
 	}
 	
@@ -346,7 +341,7 @@ class ChatGPT {
 		let content = choice.message.content.trimmingCharacters(in: ["\n", " "])
 		
 		return .init(
-			message: Message(content: content, sentByUser: false, timestamp: .now),
+			message: Message(content: content, sentByUser: false, timestamp: Date.now.timeIntervalSince1970),
 			cost: totalCost,
 			newBalance: balance,
 			error: nil

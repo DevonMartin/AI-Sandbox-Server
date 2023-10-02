@@ -26,5 +26,5 @@ struct SendMessagesOutput: Content {
 struct Message: Content {
 	let content: String
 	let sentByUser: Bool
-	let timestamp: Date
+	let timestamp: Double
 }

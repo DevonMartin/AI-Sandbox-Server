@@ -11,7 +11,7 @@ func routes(_ app: Application) throws {
 	
 	let api = app.grouped("api")
 	
-	// http://127.0.0.1:8080/api/getAvailableModels
+	// http://127.0.0.1:8080/api/availableModels
 	api.get("availableModels", use: ChatGPT.getAvailableModels)
 	
 	// http://127.0.0.1:8080/api/getBalance
