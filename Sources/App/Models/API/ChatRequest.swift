@@ -11,7 +11,7 @@ struct ChatRequestData: Content {
 	let model: String
 	let messages: [ChatRequestMessageData]
 	let temperature: Double
-	let maxTokens: Int?
+	let max_tokens: Int?
 	let user: String
 }
 
@@ -23,6 +23,7 @@ struct ChatRequestMessageData: Content {
 typealias Role = String
 
 extension Role {
+	static let system = "system"
 	static let user = "user"
 	static let assistant = "assistant"
 }

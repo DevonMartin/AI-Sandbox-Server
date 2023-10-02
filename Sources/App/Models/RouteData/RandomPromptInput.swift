@@ -7,6 +7,7 @@
 
 import Vapor
 
-struct RandomPromptData: Content {
+struct RandomPromptInput: Content {
 	let category: String
+	let userID: String
 }

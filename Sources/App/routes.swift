@@ -12,7 +12,7 @@ func routes(_ app: Application) throws {
 	let api = app.grouped("api")
 	
 	// http://127.0.0.1:8080/api/getAvailableModels
-	api.get("getAvailableModels", use: ChatGPT.getAvailableModels)
+	api.get("availableModels", use: ChatGPT.getAvailableModels)
 	
 	// http://127.0.0.1:8080/api/getBalance
 	api.post("getBalance") { req async throws -> BalanceData in
@@ -25,7 +25,13 @@ func routes(_ app: Application) throws {
 	// http://127.0.0.1:8080/api/sendMessages
 	api.post("sendMessages", use: ChatGPT.sendMessages)
 	
-	// FIXME: - Remove this! For testing-purposes only!
+	// http://127.0.0.1:8080/api/randomPrompt
+	api.post("randomPrompt", use: ChatGPT.getRandomPrompt)
+	
+	// http://127.0.0.1:8080/api/title
+	api.post("title", use: ChatGPT.getTitle)
+	
+	// FIXME: Remove these! For testing-purposes only!
 	app.delete("purchases") { req async throws -> HTTPResponseStatus in
 		try await InAppPurchase.query(on: req.db).delete()
 		return .noContent
