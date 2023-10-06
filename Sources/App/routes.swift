@@ -22,12 +22,6 @@ func routes(_ app: Application) throws {
 		return BalanceData(userID: userID, balance: balance)
 	}
 	
-	// http://127.0.0.1:8080/api/sendMessages
-	api.post("sendMessages", use: ChatGPT.sendMessages)
-	
-	// http://127.0.0.1:8080/api/randomPrompt
-	api.post("randomPrompt", use: ChatGPT.getRandomPrompt)
-	
-	// http://127.0.0.1:8080/api/title
-	api.post("title", use: ChatGPT.getTitle)
+	// http://127.0.0.1:8080/api/chatCompletion
+	api.post("chatCompletion", use: ChatGPT.chatCompletion)
 }
