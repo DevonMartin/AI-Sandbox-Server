@@ -2,7 +2,7 @@
 import PackageDescription
 
 let package = Package(
-    name: "ChatGPT Server",
+    name: "A.I. Sandbox Server",
     platforms: [
        .macOS(.v14)
     ],
