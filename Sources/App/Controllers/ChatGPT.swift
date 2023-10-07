@@ -18,8 +18,8 @@ class ChatGPT {
 	
 	// MARK: - API
 	
-	static func chatCompletion(_ req: Request) async throws -> AISandboxServerOutput {
-		guard let inputData = try? req.content.decode(AISandboxServerInput.self) else {
+	static func chatCompletion(_ req: Request) async throws -> AISandboxServer.Output {
+		guard let inputData = try? req.content.decode(AISandboxServer.Input.self) else {
 			throw Abort(.badRequest)
 		}
 		
@@ -36,7 +36,7 @@ class ChatGPT {
 	// MARK: - Helper Functions
 	
 	private static func generateRequestData(
-		from inputData: AISandboxServerInput,
+		from inputData: AISandboxServer.Input,
 		req: Request
 	) async throws -> ChatCompletion.Request {
 		guard let user = try? await User.find(inputData.userID, on: req.db) else {
@@ -69,7 +69,7 @@ class ChatGPT {
 	private static func getResponse(
 		to chatCompReq: ChatCompletion.Request,
 		req: Request
-	) async throws -> AISandboxServerOutput {
+	) async throws -> AISandboxServer.Output {
 		
 		let response: ClientResponse
 		let uri: URI = .init(string: ChatCompletion.endpointURL)
@@ -101,7 +101,7 @@ class ChatGPT {
 		_ response: ChatCompletion.Response,
 		chatCompReq: ChatCompletion.Request,
 		req: Request
-	) async throws -> AISandboxServerOutput {
+	) async throws -> AISandboxServer.Output {
 		
 		let usage = response.usage
 		let sendTokens = usage.promptTokens
