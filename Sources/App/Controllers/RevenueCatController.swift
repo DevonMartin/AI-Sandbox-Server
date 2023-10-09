@@ -11,43 +11,60 @@ final class RevenueCatController {
 	private static let secret = Environment.get("SECRET")
 	
 	static func handleWebhook(req: Request) async throws -> HTTPStatus {
-		guard let secret else {
-			throw Abort(.internalServerError, reason: "Failed to fetch SECRET from the environment.")
-		}
+		try SecretClearance.validate(req)
 		
-		guard let authorizationHeader = req.headers.first(name: "Authorization") else {
-			throw Abort(.networkAuthenticationRequired, reason: "Missing Authorization header")
-		}
-		guard authorizationHeader == secret else {
-			throw Abort(.unauthorized, reason: "Authorization header is incorrect.")
-		}
-		
-		let payload: RevenueCatPayload
-		
-		do {
-			payload = try req.content.decode(RevenueCatPayload.self)
-		} catch {
-			throw Abort(.internalServerError, reason: "Could not decode payload: \(error.localizedDescription)")
-		}
-		
-		guard let event = payload.event else {
+		guard let event = try getEvent(from: req) else {
 			throw Abort(.badRequest, reason: "No event provided in the payload.")
 		}
 		
-		guard let userID = event.app_user_id else {
+		guard let user = await getUser(from: event, req: req) else {
 			throw Abort(.badRequest, reason: "No user ID provided.")
 		}
-		
-		let user = (try? await User.find(userID, on: req.db)) ?? User(id: userID)
 		
 		do {
 			try await user.addToBalance(event, req: req)
 		} catch {
-			throw Abort(.internalServerError, reason: "Could not add to balance: \(error.localizedDescription)")
+			throw Abort(.internalServerError, reason: "Could not add to balance: \(error)")
 		}
-		let balance = await user.getBalance(req)
 		
-		let reasonPhrase = "User with ID \(userID) has a balance of $\(balance)"
+		let balance = await user.getBalance(req)
+		let reasonPhrase = "User with ID \(user.id as Any) has a balance of $\(balance)"
+		
 		return .init(statusCode: 200, reasonPhrase: reasonPhrase)
+	}
+	
+	private static func getEvent(from req: Request) throws -> RevenueCatPayload.Event? {
+		do {
+			let payload = try req.content.decode(RevenueCatPayload.self)
+			return payload.event
+		} catch {
+			throw Abort(.internalServerError, reason: "Could not decode payload: \(error)")
+		}
+	}
+	
+	private static func getUser(
+		from event: RevenueCatPayload.Event,
+		req: Request
+	) async -> User? {
+		
+		if let aliases = event.aliases, !aliases.isEmpty {
+			
+			if let user = await User.get(from: aliases, db: req.db) {
+				user.aliases = aliases
+				return user
+				
+			} else {
+				return User(id: aliases.first!, aliases: aliases)
+			}
+			
+		} else if let id = event.app_user_id, let user = await User.get(from: id, db: req.db) {
+			return user
+			
+		} else if let id = event.original_app_user_id, 
+					let user = await User.get(from: id, db: req.db) {
+			return user
+		}
+		
+		return nil
 	}
 }

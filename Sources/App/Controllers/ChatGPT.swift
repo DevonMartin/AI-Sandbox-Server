@@ -39,7 +39,7 @@ class ChatGPT {
 		from inputData: AISandboxServer.Input,
 		req: Request
 	) async throws -> ChatCompletion.Request {
-		guard let user = try? await User.find(inputData.userID, on: req.db) else {
+		guard let user = await User.get(from: inputData.userID, db: req.db) else {
 			throw self.ServerError.noUser
 		}
 		
@@ -116,7 +116,7 @@ class ChatGPT {
 		
 		var newBalance: Double?
 		
-		if let user = try? await User.find(userID, on: req.db) {
+		if let user = await User.get(from: userID, db: req.db) {
 			user.usedCredits = (user.usedCredits ?? 0) + totalCost
 			
 			do {

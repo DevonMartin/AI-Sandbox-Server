@@ -44,3 +44,15 @@ final class InAppPurchase: Model, Content {
 		self.purchaseDate = purchaseDate
 	}
 }
+
+extension InAppPurchase: CustomStringConvertible {
+	var description: String {
+  """
+
+\t\tID:          \(id ?? "None")
+\t\tProduct ID:  \(productId)
+\t\tCredits:     $\((credits))0
+
+"""
+	}
+}

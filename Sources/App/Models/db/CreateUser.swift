@@ -14,6 +14,7 @@ struct CreateUser: Migration {
 			.field("used_credits", .double)
 			.field("created_at", .datetime)
 			.field("updated_at", .datetime)
+			.field("aliases", .array(of: .string))
 			.create()
 	}
 	

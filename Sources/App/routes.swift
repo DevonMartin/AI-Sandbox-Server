@@ -10,18 +10,22 @@ func routes(_ app: Application) throws {
 	app.post("revenueCat", use: RevenueCatController.handleWebhook(req:))
 	
 	let api = app.grouped("api")
-	
-	// http://127.0.0.1:8080/api/availableModels
-	api.get("availableModels", use: ChatGPT.getAvailableModels)
-	
-	// http://127.0.0.1:8080/api/getBalance
-	api.post("getBalance") { req async throws -> BalanceData in
-		let userID = try req.content.decode(String.self)
-		let user = try? await User.find(userID, on: req.db)
-		let balance = await user?.getBalance(req)
-		return BalanceData(userID: userID, balance: balance)
-	}
+	let gpt = ChatGPT.self
 	
 	// http://127.0.0.1:8080/api/chatCompletion
-	api.post("chatCompletion", use: ChatGPT.chatCompletion)
+	api.post("chatCompletion", use: gpt.chatCompletion)
+	
+	// http://127.0.0.1:8080/api/availableModels
+	api.get("availableModels", use: gpt.getAvailableModels)
+	
+	let db = DatabaseController.self
+	
+	// http://127.0.0.1:8080/api/getBalance
+	api.post("getBalance", use: db.getUserBalance)
+	
+	// http://127.0.0.1:8080/api/data
+	api.get("data", use: db.getAllUserData)
+	
+	// http://127.0.0.1:8080/api/data/{userID}
+	api.get("data", ":userID", use: db.getUserDataString)
 }

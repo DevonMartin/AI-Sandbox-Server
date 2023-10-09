@@ -20,36 +20,54 @@ final class User: Model, Content {
 	@Timestamp(key: "updated_at", on: .update)
 	var updatedAt: Date?
 	
+	@Field(key: "aliases")
+	var aliases: [String]
+	
 	@Field(key: "used_credits")
 	var usedCredits: Double?
 	
 	init() {}
 	
-	init(id: String) {
+	init(id: String, aliases: [String] = []) {
 		self.id = id
 		self.usedCredits = 0
+		self.aliases = aliases
+	}
+	
+	static func get(from aliases: [String], db: Database) async -> User? {
+		for alias in aliases {
+			if let user = await get(from: alias, db: db) {
+				return user
+			}
+		}
+		return nil
+	}
+	
+	static func get(from id: String?, db: Database) async -> User? {
+		guard let id, let users = try? await User.query(on: db).all() else { return nil }
+		return users.first(where: { $0.id == id || $0.aliases.contains(id) } )
 	}
 	
 	func getBalance(_ req: Request) async -> Double {
-		guard let id else { return 0 }
-		
-		let purchases = try? await InAppPurchase.query(on: req.db)
+		guard let id,
+			  let purchases = try? await InAppPurchase.query(on: req.db)
 			.filter(\.$user.$id == id)
 			.all()
-		
-		guard let purchases else { return 0 }
+		else {
+			return 0
+		}
 		
 		let totalPurchasedCredits = purchases.map { $0.credits }.reduce(0, +)
 		return totalPurchasedCredits - (usedCredits ?? 0)
 	}
 	
-	func addToBalance(_ event: Event, req: Request) async throws {
+	func addToBalance(_ event: RevenueCatPayload.Event, req: Request) async throws {
 		do {
 			try await save(on: req.db)
 		} catch {
 			throw Abort(
 				.internalServerError,
-				reason: "Unable to save user to database: \(error.localizedDescription)"
+				reason: "Unable to save user to database: \(String(reflecting: error))"
 			)
 		}
 		
@@ -70,10 +88,84 @@ final class User: Model, Content {
 		do {
 			try await purchase.save(on: req.db)
 		} catch {
-			throw Abort(
-				.internalServerError,
-				reason: "Unable to save in-app purchase to database: \(error.localizedDescription)"
-			)
+			let reason = "Unable to save in-app purchase to database: \(error.localizedDescription)"
+			throw Abort(.internalServerError, reason: reason)
 		}
 	}
+}
+
+extension User: CustomStringConvertible {
+	var description: String {
+  """
+User:
+	ID: \(id ?? "None")
+	Aliases: \(aliases.reduce("", { $0 + "\n\t\t\($1)" } ) )
+	Used Credits: \(String(format: "%.2f", usedCredits ?? 0))
+
+"""
+	}
+	
+	func dataString(_ db: Database) async -> String {
+		var string =   """
+User:
+
+\tID: \(id ?? "None")
+
+"""
+		
+		if aliases.count > 1 {
+			string += "\n\tAliases:\n\(aliases.reduce("", { $0 + "\n\t\t\($1)" } ) )\n"
+		}
+		
+		guard let id,
+			  let IAPs = try? await InAppPurchase.query(on: db)
+			.filter(\.$user.$id == id)
+			.sort(\.$createdAt)
+			.all()
+		else {
+			return string
+		}
+		
+		let paid = IAPs.map(\.credits).reduce(0, +)
+		
+		if let used = usedCredits, used > 0 {
+			
+			let left = paid - used
+			
+			var spaces = [
+				"paid": String(Int(paid)).count,
+				"used": String(Int(used)).count,
+				"left": String(Int(left)).count
+			]
+			
+			spaces["max"] = spaces.values.max() ?? 0
+			
+			func spacesFor(_ s: String) -> String {
+				String(repeating: " ", count: spaces["max"]! - spaces[s]!)
+			}
+			
+			string += "\n\tCredits:\n"
+			string += "\n\t\tPurchased:  \(spacesFor("paid")) \(paid.usd)"
+			string += "\n\t\tUsed:      -\(spacesFor("used")) \(used.usd)"
+			string += "\n\t\t\(String(repeating: "-", count: spaces["max"]! + 17))"
+			string += "\n\t\tRemaining:  \(spacesFor("left")) \(left.usd)"
+			
+		} else {
+			string += "\n\tCredits:\n"
+			string += "\n\t\tPurchased:   \(paid.usd)"
+		}
+		
+		string += "\n\n\tIn-App Purchases:\n"
+		
+		for IAP in IAPs {
+			string += "\(IAP)"
+		}
+		
+		return string
+	}
+}
+
+
+private extension Double {
+	var usd: String { "$\(String(format: "%.2f", self))" }
 }
