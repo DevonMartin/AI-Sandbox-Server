@@ -47,24 +47,16 @@ final class RevenueCatController {
 		req: Request
 	) async -> User? {
 		
-		if let aliases = event.aliases, !aliases.isEmpty {
+		var aliases = event.aliases ?? []
+		if let id = event.app_user_id { aliases.append(id) }
+		if let id = event.original_app_user_id { aliases.append(id) }
+		guard !aliases.isEmpty else { return nil }
 			
-			if let user = await User.get(from: aliases, db: req.db) {
-				user.aliases = aliases
-				return user
-				
-			} else {
-				return User(id: aliases.first!, aliases: aliases)
-			}
-			
-		} else if let id = event.app_user_id, let user = await User.get(from: id, db: req.db) {
-			return user
-			
-		} else if let id = event.original_app_user_id, 
-					let user = await User.get(from: id, db: req.db) {
-			return user
+		guard let user = await User.get(from: aliases, req: req) else {
+			return User(id: aliases.first!, aliases: aliases.unique())
 		}
 		
-		return nil
+		user.aliases = (aliases + user.aliases).unique()
+		return user
 	}
 }

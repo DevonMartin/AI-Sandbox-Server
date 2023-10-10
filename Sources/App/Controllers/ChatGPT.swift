@@ -23,8 +23,14 @@ class ChatGPT {
 			throw Abort(.badRequest)
 		}
 		
-		let chatCompReq = try await generateRequestData(from: inputData, req: req)
-		return try await getResponse(to: chatCompReq, req: req)
+		let (chatCompReq, user) = try await generateRequestData(from: inputData, req: req)
+		
+		return try await getResponse(
+			to: chatCompReq,
+			model: inputData.model,
+			user: user,
+			req: req
+		)
 	}
 	
 	static func getAvailableModels(_ req: Request) async throws -> [ChatGPTModel] {
@@ -38,8 +44,8 @@ class ChatGPT {
 	private static func generateRequestData(
 		from inputData: AISandboxServer.Input,
 		req: Request
-	) async throws -> ChatCompletion.Request {
-		guard let user = await User.get(from: inputData.userID, db: req.db) else {
+	) async throws -> (req: ChatCompletion.Request, user: User) {
+		guard let user = await User.get(from: inputData.userID, req: req) else {
 			throw self.ServerError.noUser
 		}
 		
@@ -50,13 +56,14 @@ class ChatGPT {
 			maxBudget: balance
 		)
 		
-		return .init(
+		return (.init(
 			model: inputData.model.id,
 			messages: messages,
 			temperature: inputData.temperature,
 			maxTokens: maxTokens,
 			user: inputData.userID
-		)
+		),
+				user)
 	}
 	
 	private static func getKey() throws -> String {
@@ -68,6 +75,8 @@ class ChatGPT {
 	
 	private static func getResponse(
 		to chatCompReq: ChatCompletion.Request,
+		model: ChatGPTModel,
+		user: User,
 		req: Request
 	) async throws -> AISandboxServer.Output {
 		
@@ -94,38 +103,32 @@ class ChatGPT {
 			throw badResponse.error
 		}
 		
-		return try await generateDataFromResponse(output, chatCompReq: chatCompReq, req: req)
+		return try await generateDataFromResponse(output, model: model, user: user, req: req)
 	}
 	
 	private static func generateDataFromResponse(
 		_ response: ChatCompletion.Response,
-		chatCompReq: ChatCompletion.Request,
+		model: ChatGPTModel,
+		user: User,
 		req: Request
 	) async throws -> AISandboxServer.Output {
 		
 		let usage = response.usage
 		let sendTokens = usage.promptTokens
 		let receiveTokens = usage.completionTokens
-		let model = ChatGPTModel(id: chatCompReq.model)
 		let costPerToken = model.tokens.cost
 		let sendCost = costPerToken.input * Double(sendTokens)
 		let receiveCost = costPerToken.output * Double(receiveTokens)
 		let totalCost = sendCost + receiveCost
 		
-		let userID = chatCompReq.user
+		user.usedCredits = (user.usedCredits ?? 0) + totalCost
 		
-		var newBalance: Double?
-		
-		if let user = await User.get(from: userID, db: req.db) {
-			user.usedCredits = (user.usedCredits ?? 0) + totalCost
-			
-			do {
-				try await user.save(on: req.db)
-			} catch {
-				throw ChatGPT.ServerError.database
-			}
-			newBalance = await user.getBalance(req)
+		do {
+			try await user.save(on: req.db)
+		} catch {
+			throw ChatGPT.ServerError.database
 		}
+		let newBalance = await user.getBalance(req)
 		
 		let content = response.choices[0].message.content
 		let message = ChatCompletion.Message(role: .assistant, content: content)

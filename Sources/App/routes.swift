@@ -23,6 +23,9 @@ func routes(_ app: Application) throws {
 	// http://127.0.0.1:8080/api/getBalance
 	api.post("getBalance", use: db.getUserBalance)
 	
+	// http://127.0.0.1:8080/api/merge
+	api.put("merge", use: db.mergeAccounts)
+	
 	// http://127.0.0.1:8080/api/data
 	api.get("data", use: db.getAllUserData)
 	

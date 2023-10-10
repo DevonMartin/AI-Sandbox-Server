@@ -34,18 +34,31 @@ final class User: Model, Content {
 		self.aliases = aliases
 	}
 	
-	static func get(from aliases: [String], db: Database) async -> User? {
-		for alias in aliases {
-			if let user = await get(from: alias, db: db) {
-				return user
-			}
+	static func get(from aliases: [String], req: Request) async -> User? {
+		guard !aliases.isEmpty else { return nil }
+		guard let users = try? await User.query(on: req.db).all().filter( {
+			$0.id != nil && aliases.contains($0.id!)
+		} ) else {
+			return nil
 		}
-		return nil
+		
+		return await merge(users: users, req: req)
 	}
 	
-	static func get(from id: String?, db: Database) async -> User? {
-		guard let id, let users = try? await User.query(on: db).all() else { return nil }
-		return users.first(where: { $0.id == id || $0.aliases.contains(id) } )
+	static func get(from id: String?, req: Request) async -> User? {
+		await get(from: [id].compactMap({$0}), req: req)
+	}
+	
+	private static func merge(users: [User], req: Request) async -> User? {
+		if users.isEmpty { return nil }
+		if users.count > 1 {
+			let aliases = users.reduce(into: [String]()) {
+				$0 += $1.aliases
+			}
+			return try? await DatabaseController.mergeAccounts(aliases, req: req)
+		}
+		
+		return users.first!
 	}
 	
 	func getBalance(_ req: Request) async -> Double {
