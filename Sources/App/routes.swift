@@ -6,9 +6,6 @@ func routes(_ app: Application) throws {
         "It works!"
     }
 	
-	// http://127.0.0.1:8080/revenueCat
-	app.post("revenueCat", use: RevenueCatController.handleWebhook(req:))
-	
 	let api = app.grouped("api")
 	let gpt = ChatGPT.self
 	
@@ -25,6 +22,11 @@ func routes(_ app: Application) throws {
 	
 	// http://127.0.0.1:8080/api/merge
 	api.put("merge", use: db.mergeAccounts)
+	
+	// MARK: - Require Secret Service Validation™️
+	
+	// http://127.0.0.1:8080/revenueCat
+	app.post("revenueCat", use: RevenueCatController.handleWebhook(req:))
 	
 	// http://127.0.0.1:8080/api/data
 	api.get("data", use: db.getAllUserData)

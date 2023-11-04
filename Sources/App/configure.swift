@@ -8,7 +8,7 @@ public func configure(_ app: Application) async throws {
     // app.middleware.use(FileMiddleware(publicDirectory: app.directory.publicDirectory))
 	
 	guard let databaseURL = Environment.get("DATABASE_URL") else {
-fatalError("Unable to retrieve database URL from the environment.")
+		fatalError("Unable to retrieve database URL from the environment.")
 	}
 	
 	app.databases.use(try .postgres(url: databaseURL), as: .psql)

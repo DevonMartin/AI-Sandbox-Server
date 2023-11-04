@@ -35,14 +35,14 @@ final class User: Model, Content {
 	}
 	
 	static func get(from aliases: [String], req: Request) async -> User? {
-		guard !aliases.isEmpty else { return nil }
-		guard let users = try? await User.query(on: req.db).all().filter( {
-			$0.id != nil && aliases.contains($0.id!)
-		} ) else {
+		guard !aliases.isEmpty, let users = try? await User.query(on: req.db).all() else {
 			return nil
 		}
 		
-		return await merge(users: users, req: req)
+		let aliasesSet = Set(aliases)
+		let filteredUsers = users.filter({ !aliasesSet.intersection($0.aliases).isEmpty })
+		
+		return await merge(users: filteredUsers, req: req)
 	}
 	
 	static func get(from id: String?, req: Request) async -> User? {
@@ -101,7 +101,7 @@ final class User: Model, Content {
 		do {
 			try await purchase.save(on: req.db)
 		} catch {
-			let reason = "Unable to save in-app purchase to database: \(error.localizedDescription)"
+			let reason = "Unable to save in-app purchase to database: \(String(reflecting: error))"
 			throw Abort(.internalServerError, reason: reason)
 		}
 	}

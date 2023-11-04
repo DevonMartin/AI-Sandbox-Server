@@ -21,11 +21,7 @@ final class RevenueCatController {
 			throw Abort(.badRequest, reason: "No user ID provided.")
 		}
 		
-		do {
-			try await user.addToBalance(event, req: req)
-		} catch {
-			throw Abort(.internalServerError, reason: "Could not add to balance: \(error)")
-		}
+		try await user.addToBalance(event, req: req)
 		
 		let balance = await user.getBalance(req)
 		let reasonPhrase = "User with ID \(user.id as Any) has a balance of $\(balance)"
