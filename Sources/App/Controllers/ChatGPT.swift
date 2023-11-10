@@ -19,8 +19,12 @@ class ChatGPT {
 	// MARK: - API
 	
 	static func chatCompletion(_ req: Request) async throws -> AISandboxServer.Output {
-		guard let inputData = try? req.content.decode(AISandboxServer.Input.self) else {
-			throw Abort(.badRequest)
+		let inputData: AISandboxServer.Input
+		
+		do {
+			inputData = try req.content.decode(AISandboxServer.Input.self)
+		} catch {
+			throw Abort(.badRequest, reason: "\(error)")
 		}
 		
 		let (chatCompReq, user) = try await generateRequestData(from: inputData, req: req)

@@ -52,8 +52,8 @@ final class User: Model, Content {
 	private static func merge(users: [User], req: Request) async -> User? {
 		if users.isEmpty { return nil }
 		if users.count > 1 {
-			let aliases = users.reduce(into: [String]()) {
-				$0 += $1.aliases
+			let aliases = users.reduce(into: [String]()) { aliases, user in
+				aliases += user.aliases
 			}
 			return try? await DatabaseController.mergeAccounts(aliases, req: req)
 		}
