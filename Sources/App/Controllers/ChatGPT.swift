@@ -50,7 +50,7 @@ class ChatGPT {
 		req: Request
 	) async throws -> (req: ChatCompletion.Request, user: User) {
 		guard let user = await User.get(from: inputData.userID, req: req) else {
-			throw self.ServerError.noUser
+			throw Abort(.notFound, reason: ServerError.noUser.description)
 		}
 		
 		let balance = await user.getBalance(req)
@@ -85,26 +85,30 @@ class ChatGPT {
 	) async throws -> AISandboxServer.Output {
 		
 		let response: ClientResponse
-		let uri: URI = .init(string: ChatCompletion.endpointURL)
-		let apiKey = try getKey()
 		
-		response = try await req.client.post(uri) { req in
+		response = try await req.client.post(.init(string: ChatCompletion.endpointURL)) { req in
 			try req.content.encode(chatCompReq, as: .json)
-			req.headers.bearerAuthorization = .init(token: apiKey)
+			req.headers.bearerAuthorization = .init(token: try getKey())
 		}
 		
 		guard let body = response.body else { throw Abort(.failedDependency) }
+		let data = Data(buffer: body)
+		let text = String(decoding: data, as: UTF8.self)
+		print("Response body (utf8-decoded):\n\(text)")
 		
 		let output: ChatCompletion.Response
 		
 		do {
 			output = try JSONDecoder().decode(ChatCompletion.Response.self, from: body)
+		} catch let error as DecodingError {
+			req.logger.warning("###\(#function): Failed to decode JSON response body: \(error.localizedDescription)")
+			throw Abort(.internalServerError, reason: "OpenAI response could not be decoded.")
 		} catch {
 			print("###\(#function): \(error.localizedDescription)")
 			let badResponse = try JSONDecoder().decode(ChatCompletion.BadResponse.self, from: body)
 			
 			// Error message from API call is descriptive enough to be returned to the user.
-			throw badResponse.error
+			throw Abort(.badRequest, reason: badResponse.error.description)
 		}
 		
 		return try await generateDataFromResponse(output, model: model, user: user, req: req)
@@ -120,7 +124,7 @@ class ChatGPT {
 		let usage = response.usage
 		let sendTokens = usage.promptTokens
 		let receiveTokens = usage.completionTokens
-		let costPerToken = model.tokens.cost
+		let costPerToken = model.tokens.costPerToken
 		let sendCost = costPerToken.input * Double(sendTokens)
 		let receiveCost = costPerToken.output * Double(receiveTokens)
 		let totalCost = sendCost + receiveCost
@@ -145,9 +149,9 @@ class ChatGPT {
 		var description: String {
 			switch self {
 				case .database:
-					return "Unable to process your request due to an internal database error."
+					return "dbError"
 				case .noUser:
-					return "No user found with the provided ID. Please log out and back in."
+					return "noUser"
 			}
 		}
 	}

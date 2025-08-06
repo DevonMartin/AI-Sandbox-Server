@@ -6,7 +6,7 @@
 //
 
 import Vapor
-import ChatGPT
+@preconcurrency import ChatGPT
 
 struct AISandboxServer {
 	struct Input: Content {
@@ -22,7 +22,7 @@ struct AISandboxServer {
 			case userID = "user"
 		}
 		
-		private init(
+		internal init(
 			messages: [ChatCompletion.Message],
 			model: ChatGPTModel,
 			temperature: Double,
