@@ -1,33 +1,33 @@
-# AI Sandbox Server
+# AI Sandbox Server
 
-A container‑ready Swift (Vapor) backend that powers the ChatGPT-powered iOS app AI Sandbox, downloadable [here](https://apps.apple.com/us/app/ai-sandbox-chat-now/id6451053684).
+A container-ready Swift (Vapor) backend that powers the iOS app **AI Sandbox**, downloadable [here](https://apps.apple.com/us/app/ai-sandbox-chat-now/id6451053684).
+
 It exposes REST endpoints for:
 
-* user registration & alias management
-* OpenAI ChatGPT conversation proxying
-* token‑balance tracking
-* RevenueCat‑backed in‑app‑purchase (IAP) validation
+* OpenAI ChatGPT conversation proxying with token-based billing
+* User registration & alias management
+* Token balance tracking
+* RevenueCat-backed in-app purchase (IAP) validation
 
-The stack is designed for **12‑factor** deployment on Fly.io but can run anywhere Docker and PostgreSQL are available.
+The stack is designed for **12-factor** deployment on Fly.io but can run anywhere Docker and PostgreSQL are available.
 
 ---
 
-## Table of contents
+## Table of Contents
 
-1. [Architecture overview](#architecture-overview)
-2. [File & directory layout](#file--directory-layout)
-3. [Getting started](#getting-started)
-4. [Environment variables](#environment-variables)
-5. [Database schema](#database-schema)
-6. [API reference](#api-reference)
-7. [Running tests](#running-tests)
+1. [Architecture Overview](#architecture-overview)
+2. [File & Directory Layout](#file--directory-layout)
+3. [Getting Started](#getting-started)
+4. [Environment Variables](#environment-variables)
+5. [Database Schema](#database-schema)
+6. [API Reference](#api-reference)
+7. [Running Tests](#running-tests)
 8. [Deployment (Fly.io)](#deployment-flyio)
 9. [Troubleshooting & FAQ](#troubleshooting--faq)
-10. [Contributing](#contributing)
 
 ---
 
-## Architecture overview
+## Architecture Overview
 
 ```
 ┌────────────────────┐      HTTP/JSON       ┌────────────────────┐
@@ -35,144 +35,167 @@ The stack is designed for **12‑factor** deployment on Fly.io but can run anywh
 └────────────────────┘                      │  (Vapor on Swift)  │
                                             ├──────────┬─────────┤
               Postgres over TCP             │          │
-                   (docker‑compose)         │          │
+                   (docker-compose)         │          │
                                             │          │
          ┌───────────────────────┐       OpenAI   RevenueCat
          │      Postgres DB      │        API      REST API
          └───────────────────────┘
 ```
 
-### Key components
+### Key Components
 
-| Area                        | File(s)                                                                                                                | Responsibility                                             |
-| --------------------------- | ---------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
-| **Server entry**            | `entrypoint.swift`, `configure.swift`                                                                                  | Boots Vapor, registers providers, middle‑ware & routes     |
-| **Routing**                 | `routes.swift`                                                                                                         | Declares all HTTP endpoints                                |
-| **Domain models**           | `User.swift`, `InAppPurchase.swift`, `BalanceData.swift`, `ChatGPTEndpointData.swift`                                  | Codable structs that mirror DB tables & external payloads  |
-| **Controllers / Use‑cases** | `UserCreate.swift`, `UserAddAliases.swift`, `ChatGPT.swift`, `InAppPurchaseCreate.swift`, `RevenueCatController.swift` | Request handling, validation & orchestration               |
-| **Infrastructure**          | `DatabaseController.swift`, `Sequence+Extensions.swift`, `SecretClearance.swift`                                       | DB access, helpers & secrets management                    |
-| **Third‑party integration** | `ChatGPTModel+Extensions.swift`, `RevenueCatPayload.swift`                                                             | OpenAI & RevenueCat adapters                               |
-| **Config / Ops**            | `Dockerfile`, `docker-compose.yml`, `fly.toml`, `DB Guide.md`                                                          | Container build, local stack, Fly.io deploy & schema notes |
-| **Tests**                   | `AppTests.swift`                                                                                                       | End‑to‑end & unit tests with XCTest                        |
+| Area                        | File(s)                                                     | Responsibility                                       |
+| --------------------------- | ----------------------------------------------------------- | ---------------------------------------------------- |
+| **Server entry**            | `entrypoint.swift`, `configure.swift`                       | Boots Vapor, registers providers, middleware & routes |
+| **Routing**                 | `routes.swift`                                              | Declares all HTTP endpoints                          |
+| **Domain models**           | `User.swift`, `InAppPurchase.swift`                         | Fluent models that mirror DB tables                  |
+| **Request/Response DTOs**   | `BalanceData.swift`, `ChatGPTEndpointData.swift`            | Codable structs for API payloads                     |
+| **Controllers**             | `ChatGPT.swift`, `DatabaseController.swift`, `RevenueCatController.swift` | Request handling, validation & orchestration |
+| **Infrastructure**          | `SecretClearance.swift`, `Sequence+Extensions.swift`        | Auth helpers & utilities                             |
+| **Third-party integration** | `ChatGPTModel+Extensions.swift`, `RevenueCatPayload.swift`  | OpenAI & RevenueCat adapters                         |
+| **Config / Ops**            | `Dockerfile`, `docker-compose.yml`, `fly.toml`              | Container build, local stack & Fly.io deploy         |
+| **Tests**                   | `AppTests.swift`                                            | End-to-end & unit tests                              |
 
 ---
 
-## Getting started
+## Getting Started
 
 ### Prerequisites
 
-| Tool             | Version                       |
-| ---------------- | ----------------------------- |
-| Swift            | **5.9** or newer              |
-| Docker           | ≥ 24                          |
-| Fly CLI (deploy) | 0.2+                          |
-| Postgres         | 15 (local dev without Docker) |
+| Tool             | Version          |
+| ---------------- | ---------------- |
+| Swift            | **5.10** or newer |
+| Docker           | ≥ 24             |
+| Fly CLI (deploy) | 0.2+             |
+| Postgres         | 16 (local dev)   |
 
-### Quick start (Docker‑Compose)
+### Quick Start (Docker Compose)
 
 ```bash
 # 1. Clone repository
-git clone <repo‑url>
+git clone <repo-url>
 cd ai-sandbox-server
 
-# 2. Copy example env and edit keys
-cp .env.sample .env   # see “Environment variables” below
+# 2. Set environment variables
+export API_KEY="your-openai-api-key"
+export SECRET="your-webhook-secret"
 
 # 3. Build & run everything (API + Postgres)
 docker compose up --build
 ```
 
 Server becomes available at [http://localhost:8080](http://localhost:8080).
-Swagger/OpenAPI output isn’t bundled by default; use `curl` examples in the [API reference](#api-reference).
 
 ### Local Swift (no Docker)
 
 ```bash
 brew install vapor/tap/vapor
 createdb ai_sandbox
-export $(cat .env | xargs)   # load environment
-vapor run
+export DATABASE_URL="postgresql://localhost/ai_sandbox"
+export API_KEY="your-openai-api-key"
+export SECRET="your-webhook-secret"
+swift run App serve
 ```
 
 ---
 
-## Environment variables
+## Environment Variables
 
-Create a `.env` at the repo root or configure secrets in Fly.io:
+Configure these via environment or in Fly.io secrets:
 
-| Variable             | Required | Example                                        | Purpose                                  |
-| -------------------- | -------- | ---------------------------------------------- | ---------------------------------------- |
-| `DATABASE_URL`       | ✔        | `postgresql://sandbox:pass@db:5432/ai_sandbox` | Postgres DSN                             |
-| `OPENAI_API_KEY`     | ✔        | `sk‑...`                                       | Calls OpenAI Chat Completions            |
-| `REVENUECAT_API_KEY` | ✖        | `rc_secret_...`                                | Verifies App Store / Play Store receipts |
-| `JWT_SECRET`         | ✖        | Any base64 string                              | Future auth (not yet enforced)           |
-| `PORT`               | ✖        | `8080`                                         | HTTP listen port                         |
+| Variable       | Required | Example                                | Purpose                           |
+| -------------- | -------- | -------------------------------------- | --------------------------------- |
+| `DATABASE_URL` | ✔        | `postgresql://user:pass@db:5432/mydb`  | Postgres connection string        |
+| `API_KEY`      | ✔        | `sk-...`                               | OpenAI API key for chat proxying  |
+| `SECRET`       | ✔        | Any secure string                      | Auth header for protected endpoints |
+| `LOG_LEVEL`    | ✖        | `debug`, `info`                        | Logging verbosity                 |
+| `PORT`         | ✖        | `8080`                                 | HTTP listen port                  |
 
-When running under Docker the compose file will bootstrap Postgres and inject `DATABASE_URL` automatically.
-
----
-
-## Database schema
-
-> **Reference:** `DB Guide.md`
-
-The application uses **Fluent Postgres** migrations (generated via `vapor run migrate`).
-Core tables:
-
-| Table              | Columns (key fields)                                       | Notes                                 |
-| ------------------ | ---------------------------------------------------------- | ------------------------------------- |
-| `users`            | `id` (UUID PK), `aliases` (text\[]), `created_at`          | Multiple log‑in identities per person |
-| `balances`         | `user_id` (FK → users.id), `tokens` (int), `updated_at`    | Tracks ChatGPT usage quota            |
-| `in_app_purchases` | `id`, `user_id`, `product_id`, `purchase_date`, `verified` | Written after RevenueCat webhook      |
-
-Run migrations locally:
-
-```bash
-docker compose exec api vapor run migrate --yes
-```
+When running under Docker Compose, `DATABASE_URL` is injected automatically.
 
 ---
 
-## API reference
+## Database Schema
 
-<!-- Keep this section updated when routes change -->
+The application uses **Fluent Postgres** migrations (run automatically on startup).
 
-| Method & Path             | Purpose                    | Body / Query                           | Returns                     |
-| ------------------------- | -------------------------- | -------------------------------------- | --------------------------- |
-| `POST /users`             | Register a new user        | `{ "aliases": ["email@example.com"] }` | `201 Created` + `User` JSON |
-| `POST /users/:id/aliases` | Add more login aliases     | `{ "aliases": ["…"] }`                 | Updated `User`              |
-| `GET /users/:id/balance`  | Current token balance      | –                                      | `{ "tokens": 123 }`         |
-| `POST /chat`              | ChatGPT proxy (paid quota) | `ChatGPTEndpointData`                  | `ChatCompletion` JSON       |
-| `POST /in-app-purchases`  | Verify IAP with RevenueCat | Apple/Google receipt payload           | `200 OK` + purchase record  |
-| `GET /health`             | Liveness / readiness       | –                                      | `"OK"`                      |
+### Tables
 
-Example: chat request
+**users**
+| Column        | Type       | Notes                                |
+| ------------- | ---------- | ------------------------------------ |
+| `id`          | String PK  | User identifier                      |
+| `aliases`     | String[]   | Multiple login identities per user   |
+| `used_credits`| Double     | Total ChatGPT tokens consumed        |
+| `created_at`  | Timestamp  |                                      |
+| `updated_at`  | Timestamp  |                                      |
+
+**in_app_purchases**
+| Column         | Type       | Notes                                    |
+| -------------- | ---------- | ---------------------------------------- |
+| `id`           | String PK  | Transaction ID                           |
+| `user_id`      | String FK  | References users.id                      |
+| `product_id`   | String     | Format: `{amount}Tokens` (e.g., "10Tokens") |
+| `purchase_date`| Timestamp  |                                          |
+| `created_at`   | Timestamp  |                                          |
+| `updated_at`   | Timestamp  |                                          |
+
+---
+
+## API Reference
+
+| Method | Path                    | Auth     | Purpose                          |
+| ------ | ----------------------- | -------- | -------------------------------- |
+| `GET`  | `/`                     | None     | Health check                     |
+| `POST` | `/api/chatCompletion`   | None     | Proxy ChatGPT request            |
+| `GET`  | `/api/availableModels`  | None     | List available OpenAI models     |
+| `POST` | `/api/getBalance`       | None     | Get user's token balance         |
+| `PUT`  | `/api/merge`            | None     | Merge multiple user accounts     |
+| `POST` | `/revenueCat`           | `SECRET` | RevenueCat webhook handler       |
+| `GET`  | `/api/data`             | `SECRET` | Get all users' data              |
+| `GET`  | `/api/data/:userID`     | `SECRET` | Get specific user's data         |
+
+### Example: Chat Completion
 
 ```bash
-curl -X POST http://localhost:8080/chat \
+curl -X POST http://localhost:8080/api/chatCompletion \
   -H "Content-Type: application/json" \
   -d '{
         "model": "gpt-4o-mini",
         "messages": [
           { "role": "user", "content": "Hello!" }
         ],
-        "user_id": "18F73944-..."
+        "userID": "18F73944-..."
       }'
 ```
 
+**Response:**
+```json
+{
+  "message": "Hello! How can I help you today?",
+  "cost": 0.0001,
+  "newBalance": 9.9999
+}
+```
+
+### Protected Endpoints
+
+Endpoints marked with `SECRET` auth require an `Authorization` header matching the `SECRET` environment variable.
+
 ---
 
-## Running tests
+## Running Tests
 
 ```bash
 swift test
 ```
 
-`AppTests.swift` spins up an embedded Vapor app and asserts:
+Tests use an in-memory SQLite database and cover:
 
-* route wiring and middle‑ware
-* DB migrations create expected tables
-* mock calls to OpenAI & RevenueCat return 200
+* Route wiring and middleware
+* Database migrations
+* Chat completion flow
+* User balance calculations
 
 ---
 
@@ -181,8 +204,8 @@ swift test
 1. **Create app**
 
    ```bash
-   fly launch --swift --name ai-sandbox-api
-   fly secrets set $(cat .env | xargs)
+   fly launch --name ai-sandbox-api
+   fly secrets set API_KEY="your-openai-key" SECRET="your-secret"
    ```
 
 2. **Provision Postgres**
@@ -204,24 +227,12 @@ Autoscaling and regional placement are controlled in `fly.toml`.
 
 ## Troubleshooting & FAQ
 
-| Symptom                                       | Fix                                                                                             |
-| --------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| **`connection refused` to Postgres**          | `docker compose ps` and ensure `db` is healthy; check `DATABASE_URL`.                           |
-| **Chat endpoint returns 401**                 | Confirm `OPENAI_API_KEY` is valid; watch container logs `docker compose logs -f api`.           |
-| **Fly deploy times out during health checks** | Make sure `configure.swift` registers an `/health` route and PORT matches Fly `.internal_port`. |
+| Symptom                                       | Fix                                                                             |
+| --------------------------------------------- | ------------------------------------------------------------------------------- |
+| **`connection refused` to Postgres**          | Run `docker compose ps` and ensure `db` is healthy; check `DATABASE_URL`.       |
+| **Chat endpoint returns 401**                 | Confirm `API_KEY` is valid; check container logs with `docker compose logs -f`. |
+| **Fly deploy times out during health checks** | Ensure the root route `/` returns a response and PORT matches `.internal_port`. |
 
 ---
 
-## Contributing
-
-1. Fork → feature branch.
-2. Run **`swiftformat .`** (or the formatter of your choice) before committing.
-3. Ensure `swift test` passes.
-4. Open a PR describing your changes.
-
-Bug reports & feature suggestions are welcome in the issue tracker.
-For security disclosures, please email **[security@yourdomain.com](mailto:security@yourdomain.com)** instead of filing an issue.
-
----
-
-> © 2025 AI Sandbox — MIT License. See `LICENSE` for details.
+> MIT License
